@@ -1,0 +1,1 @@
+-- To fill the database with fake data(Using INSERT INTO statements): 3 Branches, 20 Students, 50 Questions, etc., for testing.

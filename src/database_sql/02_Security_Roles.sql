@@ -1,0 +1,2 @@
+-- Create the 3 user accounts: Administrator, Instructor and Student.
+-- Don't forget Write the DENY rule that stops Students from looking at the ModelAnswer table.

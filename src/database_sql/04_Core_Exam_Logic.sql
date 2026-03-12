@@ -1,0 +1,4 @@
+-- The 3 Stored Procedures:
+-- GenerateExam (Randomizes the questions)
+-- SubmitExamAnswers (Reads the XML format)
+-- CorrectExam (Calculates the total grade using a Transaction)

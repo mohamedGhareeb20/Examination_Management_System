@@ -1,0 +1,2 @@
+-- Create Database & 12 Tables.
+-- Don't forget the Primary Keys and Foreign Keys.
