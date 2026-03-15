@@ -1,6 +1,3 @@
-USE ITI_Exam_System;
-GO
-
 -- 1. CREATE ROLES
 --------------------------------------------------------------------------------------
 CREATE ROLE Administrator;
@@ -28,7 +25,7 @@ GO
 --------------------------------------------------------------------------------------
 -- Grant permissions on Question Bank
 GRANT SELECT, INSERT, UPDATE, DELETE ON Question TO Instructor;
-GRANT SELECT, INSERT, UPDATE, DELETE ON [Option] TO Instructor;
+GRANT SELECT, INSERT, UPDATE, DELETE ON QuestionOption TO Instructor;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ModelAnswer TO Instructor;
 
 -- Grant permissions on Exams
