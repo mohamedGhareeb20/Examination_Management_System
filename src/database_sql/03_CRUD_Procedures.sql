@@ -1,6 +1,3 @@
-USE ITI_Exam_System;
-GO
-
 -- 1. BRANCH PROCEDURES
 --------------------------------------------------------------------------------------
 /* Purpose: Inserts a new branch
@@ -87,9 +84,14 @@ GO
    Inputs: @CourseName, @MinDegree, @MaxDegree
    Outputs: None */
 CREATE OR ALTER PROCEDURE InsertCourse 
-    @CourseName NVARCHAR(100), @MinDegree INT, @MaxDegree INT
-AS BEGIN
-    INSERT INTO Course (CourseName, MinDegree, MaxDegree) VALUES (@CourseName, @MinDegree, @MaxDegree);
+    @CourseName NVARCHAR(100),
+    @TrackID INT,
+    @MinDegree INT,
+    @MaxDegree INT
+AS
+BEGIN
+    INSERT INTO Course (CourseName, TrackID, MinDegree, MaxDegree)
+    VALUES (@CourseName, @TrackID, @MinDegree, @MaxDegree);
 END;
 GO
 
@@ -97,9 +99,19 @@ GO
    Inputs: @CourseID, @CourseName, @MinDegree, @MaxDegree
    Outputs: None */
 CREATE OR ALTER PROCEDURE UpdateCourse 
-    @CourseID INT, @CourseName NVARCHAR(100), @MinDegree INT, @MaxDegree INT
-AS BEGIN
-    UPDATE Course SET CourseName = @CourseName, MinDegree = @MinDegree, MaxDegree = @MaxDegree WHERE CourseID = @CourseID;
+    @CourseID INT,
+    @CourseName NVARCHAR(100),
+    @TrackID INT,
+    @MinDegree INT,
+    @MaxDegree INT
+AS
+BEGIN
+    UPDATE Course
+    SET CourseName = @CourseName,
+        TrackID = @TrackID,
+        MinDegree = @MinDegree,
+        MaxDegree = @MaxDegree
+    WHERE CourseID = @CourseID;
 END;
 GO
 
@@ -116,10 +128,11 @@ GO
    Inputs: @TrackID
    Outputs: Returns table of courses */
 CREATE OR ALTER PROCEDURE SelectByTrack @TrackID INT
-AS BEGIN
-    SELECT c.* FROM Course c
-    INNER JOIN Track_Course tc ON c.CourseID = tc.CourseID
-    WHERE tc.TrackID = @TrackID;
+AS
+BEGIN
+    SELECT *
+    FROM Course
+    WHERE TrackID = @TrackID;
 END;
 GO
 
@@ -237,12 +250,15 @@ GO
    Inputs: @QuestionID, @OptionText, @OptionOrder
    Outputs: None */
 CREATE OR ALTER PROCEDURE InsertOption 
-    @QuestionID INT, @OptionText NVARCHAR(MAX), @OptionOrder INT
-AS BEGIN
-    INSERT INTO [Option] (QuestionID, OptionText, OptionOrder) VALUES (@QuestionID, @OptionText, @OptionOrder);
+    @QuestionID INT,
+    @OptionText NVARCHAR(MAX)
+AS
+BEGIN
+    INSERT INTO QuestionOption (QuestionID, OptionText)
+    VALUES (@QuestionID, @OptionText);
 END;
-GO
 
+GO
 /* Purpose: Sets the Model Answer for a question (Only 1 allowed)
    Inputs: @QuestionID, @OptionID
    Outputs: Upserts the ModelAnswer table */
