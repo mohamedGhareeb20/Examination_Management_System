@@ -7,125 +7,184 @@ PRINT 'STARTING TEST SCENARIOS (SRS SECTION 7)';
 PRINT '==================================================';
 
 --------------------------------------------------------------------------------------
--- TEST 1: GenerateExam — valid inputs
--- Expected: Exam + ExamQuestion rows created, no duplicates
+-- TEST 1: GenerateExam — Valid Inputs
 --------------------------------------------------------------------------------------
-PRINT ''; PRINT '--- TEST 1: GenerateExam (Valid) ---';
--- Generating an exam with 10 MCQs (5 pts each) + 25 T/F (2 pts each) = 100 points total
-EXEC GenerateExam @CourseID = 1, @ExamName = N'Final SQL Exam', @NumMCQ = 10, @NumTF = 15;
+PRINT ''; PRINT '--- TEST 1: GenerateExam (Valid Inputs) ---';
 
-DECLARE @Exam1_ID INT = (SELECT MAX(ExamID) FROM Exam);
-PRINT 'Exam Generated Successfully. ExamID: ' + CAST(@Exam1_ID AS NVARCHAR(10));
+EXEC GenerateExam @CourseID = 1, @ExamName = N'Midterm Exam', @NumMCQ = 5, @NumTF = 3;
 
--- Show the generated questions (Limit to 5 just to prove it works without flooding the screen)
-SELECT TOP 5 'TEST 1 SUCCESS' AS Test, ExamID, QuestionID, OrderNo FROM ExamQuestion WHERE ExamID = @Exam1_ID;
+DECLARE @Test1_ExamID INT = (SELECT MAX(ExamID) FROM Exam WHERE ExamName = N'Midterm Exam');
+
+SELECT 'TEST 1 SUCCESS' AS Test, ExamID, QuestionID, OrderNo 
+FROM ExamQuestion 
+WHERE ExamID = @Test1_ExamID;
 
 
 --------------------------------------------------------------------------------------
--- TEST 2: GenerateExam — not enough questions
--- Expected: Error raised, no partial exam created
+-- TEST 2: GenerateExam — Not Enough Questions
 --------------------------------------------------------------------------------------
 PRINT ''; PRINT '--- TEST 2: GenerateExam (Not Enough Questions) ---';
+
 BEGIN TRY
-    -- We only have 30 MCQs in the bank, requesting 100 should fail
+    -- Trying to request 100 MCQs when the bank only has 30
     EXEC GenerateExam @CourseID = 1, @ExamName = N'Impossible Exam', @NumMCQ = 100, @NumTF = 10;
 END TRY
 BEGIN CATCH
-    PRINT 'TEST 2 SUCCESS: Error successfully caught!';
-    PRINT 'Error Message: ' + ERROR_MESSAGE();
+    SELECT 'TEST 2 SUCCESS' AS Test, ERROR_MESSAGE() AS CaughtError;
 END CATCH
 
 
 --------------------------------------------------------------------------------------
--- TEST 3 & TEST 5: SubmitExamAnswers (All Answered) & CorrectExam (All Correct)
--- Expected: TotalGrade = MaxDegree (100)
+-- TEST 3: SubmitExamAnswers — All Questions Answered
 --------------------------------------------------------------------------------------
-PRINT ''; PRINT '--- TEST 3 & 5: Submit Answers & Correct (100%) ---';
+PRINT ''; PRINT '--- TEST 3: SubmitExamAnswers (All Answered) ---';
 
--- Dynamically generate an XML string with 100% CORRECT answers for Exam 1
-DECLARE @PerfectAnswersXML XML = (
+DECLARE @Test3_ExamID INT = (SELECT MAX(ExamID) FROM Exam WHERE ExamName = N'Midterm Exam');
+
+-- Generate XML with answers for EVERY question
+DECLARE @AllAnswersXML XML = (
     SELECT eq.QuestionID, ma.OptionID AS ChosenOptionID
     FROM ExamQuestion eq
     JOIN ModelAnswer ma ON eq.QuestionID = ma.QuestionID
-    WHERE eq.ExamID = @Exam1_ID
+    WHERE eq.ExamID = @Test3_ExamID
     FOR XML PATH('Answer'), ROOT('Answers')
 );
 
--- Student 1 takes Exam 1
-EXEC SubmitExamAnswers @StudentID=1, @ExamID=@Exam1_ID, @StartTime='2024-01-01 10:00', @EndTime='2024-01-01 11:00', @Answers=@PerfectAnswersXML;
-DECLARE @StudentExam1_ID INT = (SELECT MAX(StudentExamID) FROM StudentExam WHERE StudentID = 1);
+-- Student 1 submits the exam
+EXEC SubmitExamAnswers @StudentID=1, @ExamID=@Test3_ExamID, @StartTime='2024-01-01 10:00', @EndTime='2024-01-01 11:00', @Answers=@AllAnswersXML;
 
--- Correct the Exam
-EXEC CorrectExam @StudentExamID = @StudentExam1_ID;
+DECLARE @Student1_ExamID INT = (SELECT MAX(StudentExamID) FROM StudentExam WHERE StudentID = 1);
 
--- Verify Grade is 100
-SELECT 'TEST 3 & 5 SUCCESS' AS Test, StudentID, TotalGrade, 'Should be 100' AS Expected FROM StudentExam WHERE StudentExamID = @StudentExam1_ID;
+-- Verify that the number of answers submitted equals the number of questions on the exam (8)
+SELECT 'TEST 3 SUCCESS' AS Test, COUNT(*) AS AnswersSubmitted, 'Should be 8' AS Expected 
+FROM StudentAnswer 
+WHERE StudentExamID = @Student1_ExamID;
 
 
 --------------------------------------------------------------------------------------
--- TEST 4 & TEST 6: SubmitExamAnswers (1 Skipped) & CorrectExam (All Wrong)
--- Expected: Success, Skipped = no row, TotalGrade = 0
+-- TEST 4: SubmitExamAnswers — One Question Skipped
 --------------------------------------------------------------------------------------
-PRINT ''; PRINT '--- TEST 4 & 6: Submit Answers (Skipped 1) & Correct (0%) ---';
+PRINT ''; PRINT '--- TEST 4: SubmitExamAnswers (One Question Skipped) ---';
 
--- Generate a second smaller exam
-EXEC GenerateExam @CourseID = 1, @ExamName = N'Makeup SQL Exam', @NumMCQ = 5, @NumTF = 5;
-DECLARE @Exam2_ID INT = (SELECT MAX(ExamID) FROM Exam);
+DECLARE @Test4_ExamID INT = (SELECT MAX(ExamID) FROM Exam WHERE ExamName = N'Midterm Exam');
 
--- Dynamically generate an XML string with WRONG answers, and SKIP the first question
+-- 1. Find out exactly how many questions are on THIS specific exam
+DECLARE @TotalQuestions INT = (SELECT COUNT(*) FROM ExamQuestion WHERE ExamID = @Test4_ExamID);
+
+-- 2. Generate XML and purposely skip exactly ONE question using TOP (@Total - 1)
+DECLARE @SkippedAnswersXML XML = (
+    SELECT TOP (@TotalQuestions - 1) 
+           eq.QuestionID, ma.OptionID AS ChosenOptionID
+    FROM ExamQuestion eq
+    JOIN ModelAnswer ma ON eq.QuestionID = ma.QuestionID
+    WHERE eq.ExamID = @Test4_ExamID
+    ORDER BY eq.QuestionID -- Order doesn't matter, we just want to leave 1 out
+    FOR XML PATH('Answer'), ROOT('Answers')
+);
+
+-- 3. Student 2 submits the exam
+EXEC SubmitExamAnswers 
+    @StudentID=2, 
+    @ExamID=@Test4_ExamID, 
+    @StartTime='2024-01-02 10:00', 
+    @EndTime='2024-01-02 11:00', 
+    @Answers=@SkippedAnswersXML;
+
+DECLARE @Student2_ExamID INT = (SELECT MAX(StudentExamID) FROM StudentExam WHERE StudentID = 2);
+
+-- 4. Dynamically set what the Expected number should be
+DECLARE @ExpectedNumber INT = @TotalQuestions - 1;
+
+-- 5. Verify the Results!
+SELECT 
+    'TEST 4 SUCCESS' AS Test, 
+    COUNT(*) AS AnswersSubmitted, 
+    'Should be ' + CAST(@ExpectedNumber AS NVARCHAR(10)) AS Expected 
+FROM StudentAnswer 
+WHERE StudentExamID = @Student2_ExamID;
+
+
+--------------------------------------------------------------------------------------
+-- TEST 5: CorrectExam — All Correct
+--------------------------------------------------------------------------------------
+PRINT ''; PRINT '--- TEST 5: CorrectExam (All Correct) ---';
+
+-- We grade Student 1 (From Test 3, who answered everything correctly)
+DECLARE @Grade_Student1_ExamID INT = (SELECT MAX(StudentExamID) FROM StudentExam WHERE StudentID = 1);
+
+EXEC CorrectExam @StudentExamID = @Grade_Student1_ExamID;
+
+-- Dynamically calculate what the perfect score should be
+DECLARE @PerfectScore INT = (
+    SELECT SUM(q.Points) FROM ExamQuestion eq 
+    JOIN Question q ON eq.QuestionID = q.QuestionID 
+    WHERE eq.ExamID = (SELECT ExamID FROM StudentExam WHERE StudentExamID = @Grade_Student1_ExamID)
+);
+
+SELECT 'TEST 5 SUCCESS' AS Test, TotalGrade, 'Should be ' + CAST(@PerfectScore AS NVARCHAR(10)) AS Expected 
+FROM StudentExam 
+WHERE StudentExamID = @Grade_Student1_ExamID;
+
+
+--------------------------------------------------------------------------------------
+-- TEST 6: CorrectExam — All Wrong (0 Points)
+--------------------------------------------------------------------------------------
+PRINT ''; PRINT '--- TEST 6: CorrectExam (All Wrong) ---';
+
+DECLARE @Test6_ExamID INT = (SELECT MAX(ExamID) FROM Exam WHERE ExamName = N'Midterm Exam');
+
+-- Generate XML with WRONG answers for Student 3
 DECLARE @WrongAnswersXML XML = (
     SELECT eq.QuestionID, 
-           -- Get an OptionID that is NOT the ModelAnswer
            (SELECT TOP 1 OptionID FROM [Option] o WHERE o.QuestionID = eq.QuestionID AND o.OptionID <> ma.OptionID) AS ChosenOptionID
     FROM ExamQuestion eq
     JOIN ModelAnswer ma ON eq.QuestionID = ma.QuestionID
-    WHERE eq.ExamID = @Exam2_ID
-      AND eq.OrderNo > 1 -- THIS SKIPS QUESTION #1 (Proves Test 4)
+    WHERE eq.ExamID = @Test6_ExamID
     FOR XML PATH('Answer'), ROOT('Answers')
 );
 
--- Student 2 takes Exam 2
-EXEC SubmitExamAnswers @StudentID=2, @ExamID=@Exam2_ID, @StartTime='2024-01-02 10:00', @EndTime='2024-01-02 11:00', @Answers=@WrongAnswersXML;
-DECLARE @StudentExam2_ID INT = (SELECT MAX(StudentExamID) FROM StudentExam WHERE StudentID = 2);
+-- Student 3 submits ALL WRONG answers
+EXEC SubmitExamAnswers @StudentID=3, @ExamID=@Test6_ExamID, @StartTime='2024-01-03 10:00', @EndTime='2024-01-03 11:00', @Answers=@WrongAnswersXML;
 
--- Correct the Exam
-EXEC CorrectExam @StudentExamID = @StudentExam2_ID;
+DECLARE @Student3_ExamID INT = (SELECT MAX(StudentExamID) FROM StudentExam WHERE StudentID = 3);
 
--- Verify Grade is 0
-SELECT 'TEST 4 & 6 SUCCESS' AS Test, StudentID, TotalGrade, 'Should be 0' AS Expected FROM StudentExam WHERE StudentExamID = @StudentExam2_ID;
+-- Grade Student 3
+EXEC CorrectExam @StudentExamID = @Student3_ExamID;
+
+SELECT 'TEST 6 SUCCESS' AS Test, TotalGrade, 'Should be 0' AS Expected 
+FROM StudentExam 
+WHERE StudentExamID = @Student3_ExamID;
 
 
 --------------------------------------------------------------------------------------
--- TEST 7: Run all 3 reports
--- Expected: Correct data returned
+-- TEST 7: Run All 3 Reports
 --------------------------------------------------------------------------------------
-PRINT ''; PRINT '--- TEST 7: Running Reports ---';
+PRINT ''; PRINT '--- TEST 7: Running All 3 Reports ---';
 
-PRINT 'Report 1: Students By Department (Dept 10)';
+PRINT 'Executing Report 1: Students By Department (Dept 10)';
 EXEC Report_StudentsByDepartment @DepartmentNo = 10;
 
-PRINT 'Report 2: Student Grades (Student 1)';
+PRINT 'Executing Report 2: Student Grades (Student 1)';
 EXEC Report_StudentGrades @StudentID = 1;
 
-PRINT 'Report 3: Instructor Courses (Instructor 1)';
+PRINT 'Executing Report 3: Instructor Courses (Instructor 1)';
 EXEC Report_InstructorCourses @InstructorID = 1;
 
 
 --------------------------------------------------------------------------------------
--- TEST 8: Delete Course with existing exams
--- Expected: FK constraint error — delete rejected
+-- TEST 8: Delete Course with Existing Exams
 --------------------------------------------------------------------------------------
 PRINT ''; PRINT '--- TEST 8: Delete Course (FK Constraint) ---';
+
 BEGIN TRY
-    -- Course 1 has exams generated from Test 1 and Test 4. Deleting it should fail.
+    -- Course 1 has exams generated from Test 1. Deleting it MUST fail per the SRS.
     DELETE FROM Course WHERE CourseID = 1;
 END TRY
 BEGIN CATCH
-    PRINT 'TEST 8 SUCCESS: Deletion rejected due to Foreign Key Constraint!';
-    PRINT 'Error Message: ' + ERROR_MESSAGE();
+    SELECT 'TEST 8 SUCCESS' AS Test, 'Deletion rejected due to FK Constraint' AS Result, ERROR_MESSAGE() AS Details;
 END CATCH
 
 PRINT '==================================================';
-PRINT 'ALL TESTS COMPLETED SUCCESSFULLY!';
+PRINT 'ALL 8 TESTS COMPLETED SUCCESSFULLY!';
 PRINT '==================================================';
 GO
