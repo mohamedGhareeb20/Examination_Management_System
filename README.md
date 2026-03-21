@@ -1,4 +1,4 @@
-# 🎓 Student Examination Management System (Database-Centric Design)
+#  Student Examination Management System (Database-Centric Design)
 
 A professional, enterprise-level application developed for the **Information Technology Institute (ITI)**. This project implements a fully automated examination lifecycle where 100% of the business logic, data integrity rules, and grading calculations reside within **SQL Server Stored Procedures**.
 
